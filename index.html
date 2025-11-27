@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einsatzplaner</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚐</text></svg>">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        :root { --primary-color: #0d9488; }
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1.5rem; margin-bottom: 2rem; }
+        .btn-primary { background-color: var(--primary-color); color: white; transition: 0.2s; }
+        .btn-primary:hover { background-color: #0f766e; }
+        
+        /* Sticky Column Styles */
+        .sticky-col { position: sticky; left: 0; z-index: 20; background-color: inherit; }
+        th.sticky-col { z-index: 30; } 
+        
+        .time-slot { min-height: 40px; font-size: 0.75rem; line-height: 1.1; }
+        .time-slot:hover { opacity: 0.9; cursor: pointer; }
+        
+        /* Table borders */
+        td, th { border-color: #e5e7eb; }
+        
+        /* Hidden class helper */
+        .hidden { display: none !important; }
+        
+        /* PDF Temp Container */
+        #pdf-temp-container { position: absolute; left: -9999px; top: 0; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1",
+    "jspdf": "https://aistudiocdn.com/jspdf@^3.0.4",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+  }
+}
+</script>
+</head>
+<body class="min-h-screen p-4 md:p-8 text-gray-800">
+
+    <div class="max-w-[1400px] mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm space-y-4 md:space-y-0">
+            <h1 class="text-3xl font-extrabold text-gray-900 flex items-center">
+                <span class="text-4xl mr-2">🚐</span> Einsatzplaner
+            </h1>
+            
+            <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="openNotificationModal()" class="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                    Benachrichtigungen
+                </button>
+                <button onclick="exportCalendar()" class="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Kalender (.ics)
+                </button>
+                <button onclick="exportData()" class="flex items-center px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Backup Speichern
+                </button>
+                <label class="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer text-sm font-medium">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Restore Laden
+                    <input type="file" class="hidden" onchange="importData(this)" accept=".json">
+                </label>
+            </div>
+        </header>
+
+        <!-- 1. Fahrer verwalten -->
+        <div class="card">
+            <div class="flex justify-between items-center cursor-pointer border-b pb-2 mb-4" onclick="toggleSection('driver-section', 'driver-icon')">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                    1. Fahrer verwalten
+                </h2>
+                <svg id="driver-icon" class="w-6 h-6 transform transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <div id="driver-section">
+                <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                    <input type="text" id="new-driver-name" placeholder="Name des Fahrers" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none">
+                    <button onclick="addDriver()" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700">Hinzufügen</button>
+                </div>
+                <div class="border-t pt-4 flex flex-col sm:flex-row gap-4 items-center">
+                    <select id="delete-driver-select" class="flex-grow w-full p-3 border border-gray-300 rounded-lg bg-white">
+                        <option value="">Fahrer zum Löschen wählen...</option>
+                    </select>
+                    <button onclick="deleteDriver()" class="px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 flex items-center justify-center w-full sm:w-auto">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3"></path></svg>
+                        Löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Schicht anlegen -->
+        <div class="card">
+            <div class="flex justify-between items-center cursor-pointer border-b pb-2 mb-4" onclick="toggleSection('shift-create-section', 'shift-create-icon')">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    2. Schicht anlegen (Verfügbarkeit)
+                </h2>
+                <svg id="shift-create-icon" class="w-6 h-6 transform transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+
+            <div id="shift-create-section">
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <div class="w-full md:w-1/4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fahrer</label>
+                        <select id="shift-driver" class="w-full p-3 border border-gray-300 rounded-lg bg-white"></select>
+                    </div>
+                    <div class="w-full md:w-1/4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Datum</label>
+                        <select id="shift-date" class="w-full p-3 border border-gray-300 rounded-lg bg-white"></select>
+                    </div>
+                    <div class="w-full md:w-1/3 flex gap-2 items-end">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Von</label>
+                            <input type="time" id="shift-start" class="w-full p-3 border border-gray-300 rounded-lg">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bis</label>
+                            <input type="time" id="shift-end" class="w-full p-3 border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center mb-4">
+                    <input type="checkbox" id="shift-allday" onchange="toggleTimeInputs(this.checked)" class="w-4 h-4 text-teal-600 rounded">
+                    <label for="shift-allday" class="ml-2 text-sm font-medium text-gray-900">Ganztägig (24h)</label>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-4 mb-4">
+                    <input type="text" id="shift-desc" placeholder="Bemerkung (z.B. Frühschicht)" class="flex-grow p-3 border border-gray-300 rounded-lg">
+                    <button onclick="addPendingShift()" class="px-6 py-3 bg-teal-500 text-white font-bold rounded-lg hover:bg-teal-600 shadow-md w-full md:w-auto">+ Zur Liste</button>
+                </div>
+
+                <div id="pending-list-container" class="hidden mt-6 bg-gray-50 p-4 rounded-lg border">
+                    <h3 class="font-bold text-gray-700 mb-2">Zu erstellende Schichten:</h3>
+                    <ul id="pending-list" class="space-y-2 mb-4"></ul>
+                    <button onclick="commitPendingShifts()" class="w-full py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 shadow-lg">Alle Verfügbarkeiten anlegen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Verfügbarkeiten Plan -->
+        <div class="card">
+            <div class="flex justify-between items-center cursor-pointer border-b pb-2 mb-4" onclick="toggleSection('avail-plan-wrapper', 'avail-plan-icon')">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    📋 Verfügbarkeiten Übersicht
+                </h2>
+                <svg id="avail-plan-icon" class="w-6 h-6 transform rotate-90 transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="avail-plan-wrapper" class="hidden">
+                <div id="avail-events-banner" class="hidden mb-4 p-3 bg-yellow-50 border-l-4 border-amber-500 rounded text-sm text-yellow-800"></div>
+                <div class="overflow-x-auto relative rounded-lg border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200" id="avail-table">
+                        <!-- Content rendered by JS -->
+                    </table>
+                </div>
+                <p id="avail-empty-msg" class="text-center text-gray-500 py-4 hidden">Keine Daten vorhanden.</p>
+            </div>
+        </div>
+
+        <!-- 4. Finaler Plan -->
+        <div class="card">
+            <div class="flex justify-between items-center cursor-pointer border-b pb-2 mb-4" onclick="toggleSection('final-plan-wrapper', 'final-plan-icon')">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    📅 Finaler Einsatzplan
+                </h2>
+                <svg id="final-plan-icon" class="w-6 h-6 transform rotate-90 transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="final-plan-wrapper" class="hidden">
+                <div id="final-events-banner" class="hidden mb-4 p-3 bg-yellow-50 border-l-4 border-amber-500 rounded text-sm text-yellow-800"></div>
+                <div class="overflow-x-auto relative rounded-lg border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200" id="final-table">
+                         <!-- Content rendered by JS -->
+                    </table>
+                </div>
+                <p id="final-empty-msg" class="text-center text-gray-500 py-4 hidden">Keine Daten vorhanden.</p>
+            </div>
+        </div>
+
+        <!-- 5. Admin -->
+        <div class="card">
+            <div class="flex justify-between items-center cursor-pointer border-b pb-2 mb-4" onclick="toggleSection('admin-wrapper', 'admin-icon')">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    ⚙️ Admin: Events
+                </h2>
+                <svg id="admin-icon" class="w-6 h-6 transform rotate-90 transition-transform text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="admin-wrapper" class="hidden">
+                <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-100 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <input type="text" id="event-name" placeholder="Event Name (z.B. Messe)" class="w-full p-2 border rounded">
+                        <input type="date" id="event-start" class="w-full p-2 border rounded">
+                        <input type="date" id="event-end" class="w-full p-2 border rounded">
+                    </div>
+                    <button onclick="addEvent()" class="px-4 py-2 bg-yellow-600 text-white font-bold rounded hover:bg-yellow-700">Event hinzufügen</button>
+                </div>
+                <ul id="event-list" class="divide-y divide-gray-200"></ul>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xl w-full m-4 max-h-[90vh] overflow-y-auto">
+            <h3 id="edit-modal-title" class="text-xl font-bold text-teal-700 mb-6">Bearbeiten</h3>
+            <input type="hidden" id="edit-id">
+            <input type="hidden" id="edit-type">
+
+            <div class="space-y-4 mb-6 border-b pb-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Fahrer</label>
+                        <input type="text" id="edit-driver" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Datum</label>
+                        <input type="date" id="edit-date" class="w-full p-2 border rounded mt-1">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Bemerkung</label>
+                    <input type="text" id="edit-desc" class="w-full p-2 border rounded mt-1">
+                </div>
+            </div>
+
+            <!-- Single Time Edit (For Assignment) -->
+            <div id="edit-single-time" class="hidden mb-6">
+                 <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Start</label>
+                        <input type="time" id="edit-start" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Ende</label>
+                        <input type="time" id="edit-end" class="w-full p-2 border rounded mt-1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slots Edit (For Availability) -->
+            <div id="edit-slots-section" class="hidden mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-bold text-gray-700">Zuteilungs-Slots (Final):</h4>
+                    <button onclick="addSlot()" class="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600">+ Zusatz</button>
+                </div>
+                <div id="slots-container" class="space-y-2"></div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeEditModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Abbrechen</button>
+                <button id="btn-save-simple" onclick="saveSimple()" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">Speichern</button>
+                <button id="btn-assign-save" onclick="assignAndSave()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 hidden">Zuweisen & Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notification-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full m-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                Benachrichtigungen
+            </h3>
+            <p class="text-sm text-gray-500 mb-4">Einstellungen für Fahrernotifikationen (Simuliert).</p>
+            
+            <div class="space-y-3 mb-6">
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span>E-Mail Versand</span>
+                    <input type="checkbox" id="notif-email" class="w-5 h-5 text-teal-600 rounded">
+                </div>
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span>Push-Nachrichten</span>
+                    <input type="checkbox" id="notif-push" class="w-5 h-5 text-teal-600 rounded">
+                </div>
+                <hr>
+                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" id="notif-assign" class="rounded text-teal-600"> <span>Bei Zuweisung</span></label>
+                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" id="notif-change" class="rounded text-teal-600"> <span>Bei Änderung</span></label>
+                <label class="flex items-center space-x-2 text-sm"><input type="checkbox" id="notif-delete" class="rounded text-teal-600"> <span>Bei Stornierung</span></label>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="saveNotifications()" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pdf-temp-container"></div>
+
+    <script>
+        // --- DATA & STATE ---
+        const STORAGE_KEY = 'driverPlanerDataV7';
+        const DEFAULT_NOTIFICATIONS = { emailEnabled: false, pushEnabled: false, notifyOnAssignment: true, notifyOnChange: true, notifyOnDelete: true };
+        
+        let data = {
+            drivers: [],
+            shifts: [],
+            assignments: [],
+            periodEvents: [],
+            notificationSettings: DEFAULT_NOTIFICATIONS
+        };
+
+        let pendingShifts = [];
+        let currentSlots = []; // For modal editing
+        
+        // --- CONSTANTS ---
+        const DRIVER_COLORS = [
+            { bg: '#D1FAE5', border: '#10B981' }, { bg: '#DBEAFE', border: '#3B82F6' },
+            { bg: '#FEF3C7', border: '#F59E0B' }, { bg: '#FEE2E2', border: '#EF4444' },
+            { bg: '#E0E7FF', border: '#6366F1' }, { bg: '#FCE7F3', border: '#EC4899' },
+            { bg: '#F3E8FF', border: '#A855F7' }, { bg: '#CFFAFE', border: '#06B6D4' },
+            { bg: '#FFE4E6', border: '#F43F5E' }, { bg: '#D6D3D1', border: '#78716C' }
+        ];
+
+        const PRESET_DATES = [
+            { date: '2025-11-21', label: '21. November (S/N)' }, 
+            { date: '2025-11-22', label: '22. November 2025 (S/N)' }, 
+            { date: '2025-11-23', label: '23. November 2025 (S/N)', isGroupSeparator: true },
+            { date: '2025-11-28', label: '28. November 2025 (S/N)' }, 
+            { date: '2025-11-29', label: '29. November 2025 (S/N)' }, 
+            { date: '2025-11-30', label: '30. November 2025 (S/N)', isGroupSeparator: true },
+            { date: '2025-12-05', label: '05. Dezember 2025 (S/N)' },
+            { date: '2025-12-06', label: '06. Dezember 2025 (S/N)' },
+            { date: '2025-12-07', label: '07. Dezember 2025 (S/N)', isGroupSeparator: true },
+            { date: '2025-12-12', label: '12. Dezember 2025 (S/N)' },
+            { date: '2025-12-13', label: '13. Dezember 2025 (S/N)' },
+            { date: '2025-12-14', label: '14. Dezember 2025 (S/N)', isGroupSeparator: true },
+            { date: '2025-12-19', label: '19. Dezember 2025 (S/N)' },
+            { date: '2025-12-20', label: '20. Dezember 2025 (S/N)' },
+            { date: '2025-12-21', label: '21. Dezember 2025 (S/N)', isGroupSeparator: true },
+            { date: '2025-12-24', label: '24. Dezember 2025 (Heiligabend)' }, 
+            { date: '2025-12-25', label: '25. Dezember 2025 (1. Weihnachtstag)' },
+            { date: '2025-12-26', label: '26. Dezember 2025 (2. Weihnachtstag)' },
+            { date: '2025-12-31', label: '31. Dezember 2025 (Silvester)' }, 
+            { date: '2026-01-01', label: '01. Januar 2026 (Neujahr)' }, 
+        ];
+
+        // --- UTILS ---
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function formatDateDE(dateString, includeYear = false) {
+            if (!dateString || !dateString.includes('-')) return 'N/A';
+            const [year, month, day] = dateString.split('-');
+            return includeYear ? `${day}.${month}.${year}` : `${day}.${month}.`;
+        }
+
+        function getPlanColumns() {
+            const columns = [];
+            let currentGroupMonth = null, currentGroupYear = null, lastDate = null;
+
+            PRESET_DATES.forEach(d => {
+                const dateObj = new Date(d.date + 'T00:00:00');
+                const month = dateObj.getMonth();
+                const year = dateObj.getFullYear();
+                let isNewGroup = false;
+
+                if (month !== currentGroupMonth || year !== currentGroupYear) {
+                    columns.push({ type: 'separator', label: `--- ${dateObj.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }).toUpperCase()} ---` });
+                    currentGroupMonth = month;
+                    currentGroupYear = year;
+                    lastDate = null;
+                    isNewGroup = true;
+                }
+
+                if (lastDate && !isNewGroup) {
+                    const diffDays = Math.ceil(Math.abs(dateObj.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 1.5) columns.push({ type: 'separator', label: '---' });
+                }
+
+                const weekday = dateObj.toLocaleDateString('de-DE', { weekday: 'short' });
+                const match = d.label.match(/\((.*?)\)/);
+                columns.push({ type: 'date', date: d.date, label: d.label, userLabel: match ? match[1] : d.label, weekday });
+                lastDate = dateObj;
+            });
+            return columns;
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function loadData() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    data = { ...data, ...parsed };
+                    if (!data.notificationSettings) data.notificationSettings = DEFAULT_NOTIFICATIONS;
+                } catch(e) { console.error(e); }
+            }
+        }
+
+        function simulateNotification(driver, action) {
+            const s = data.notificationSettings;
+            if (!s.emailEnabled && !s.pushEnabled) return;
+            if ((action === 'assign' && !s.notifyOnAssignment) || 
+                (action === 'change' && !s.notifyOnChange) || 
+                (action === 'delete' && !s.notifyOnDelete)) return;
+            
+            const channels = [];
+            if (s.emailEnabled) channels.push("E-Mail");
+            if (s.pushEnabled) channels.push("Push");
+            
+            const msgs = { assign: 'Neue Zuweisung', change: 'Planänderung', delete: 'Stornierung' };
+            alert(`[SIMULATION] Nachricht an ${driver}: ${msgs[action]}\nVia: ${channels.join(', ')}`);
+        }
+
+        // --- RENDER FUNCTIONS ---
+        function init() {
+            loadData();
+            renderDrivers();
+            renderShiftForm();
+            renderPlans();
+            renderAdmin();
+            renderNotificationModalState();
+        }
+
+        function toggleSection(id, iconId) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById(iconId);
+            el.classList.toggle('hidden');
+            icon.classList.toggle('rotate-90');
+            icon.classList.toggle('rotate-180');
+        }
+
+        // Drivers
+        function renderDrivers() {
+            const select = document.getElementById('delete-driver-select');
+            const shiftSelect = document.getElementById('shift-driver');
+            
+            let html = '<option value="">Wählen...</option>';
+            data.drivers.sort().forEach(d => { html += `<option value="${d}">${d}</option>`; });
+            
+            select.innerHTML = html;
+            shiftSelect.innerHTML = html;
+        }
+
+        function addDriver() {
+            const input = document.getElementById('new-driver-name');
+            const name = input.value.trim();
+            if (!name) return;
+            if (data.drivers.includes(name)) return alert('Name existiert schon');
+            data.drivers.push(name);
+            saveData();
+            input.value = '';
+            renderDrivers();
+            renderPlans(); // Update table rows
+        }
+
+        function deleteDriver() {
+            const name = document.getElementById('delete-driver-select').value;
+            if (!name) return;
+            if (data.shifts.some(s => s.driver === name) || data.assignments.some(a => a.driver === name)) {
+                return alert('Fahrer hat noch Schichten. Erst löschen.');
+            }
+            if (!confirm(`Fahrer ${name} löschen?`)) return;
+            data.drivers = data.drivers.filter(d => d !== name);
+            saveData();
+            renderDrivers();
+            renderPlans();
+        }
+
+        // Shifts Creation
+        function renderShiftForm() {
+            const dateSelect = document.getElementById('shift-date');
+            let html = '<option value="">Wählen...</option>';
+            getPlanColumns().filter(c => c.type !== 'separator').forEach(c => {
+                html += `<option value="${c.date}">${c.label}</option>`;
+            });
+            dateSelect.innerHTML = html;
+        }
+
+        function toggleTimeInputs(isAllDay) {
+            document.getElementById('shift-start').disabled = isAllDay;
+            document.getElementById('shift-end').disabled = isAllDay;
+            if (isAllDay) {
+                document.getElementById('shift-start').value = '';
+                document.getElementById('shift-end').value = '';
+            }
+        }
+
+        function addPendingShift() {
+            const driver = document.getElementById('shift-driver').value;
+            const date = document.getElementById('shift-date').value;
+            const isAllDay = document.getElementById('shift-allday').checked;
+            const start = document.getElementById('shift-start').value;
+            const end = document.getElementById('shift-end').value;
+            const desc = document.getElementById('shift-desc').value;
+
+            if (!driver || !date) return alert('Fahrer und Datum nötig');
+            if (!isAllDay && (!start || !end)) return alert('Zeiten nötig');
+
+            pendingShifts.push({ driver, date, startTime: start, endTime: end, description: desc, isAllDay });
+            renderPendingList();
+            
+            // Reset fields but keep driver sometimes handy? No reset all.
+            document.getElementById('shift-desc').value = '';
+        }
+
+        function renderPendingList() {
+            const list = document.getElementById('pending-list');
+            const container = document.getElementById('pending-list-container');
+            list.innerHTML = '';
+            if (pendingShifts.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+            pendingShifts.forEach((s, i) => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between bg-white p-2 border rounded shadow-sm';
+                li.innerHTML = `<span>${s.driver} | ${s.date} | ${s.isAllDay?'24h':s.startTime+'-'+s.endTime}</span> 
+                                <button onclick="removePending(${i})" class="text-red-500 font-bold">&times;</button>`;
+                list.appendChild(li);
+            });
+        }
+        
+        function removePending(i) {
+            pendingShifts.splice(i, 1);
+            renderPendingList();
+        }
+
+        function commitPendingShifts() {
+            const newShifts = pendingShifts.map(s => ({ ...s, id: generateUUID() }));
+            data.shifts.push(...newShifts);
+            saveData();
+            pendingShifts = [];
+            renderPendingList();
+            renderPlans();
+            alert(`${newShifts.length} Schichten angelegt.`);
+        }
+
+        // Plans Rendering
+        function renderPlans() {
+            renderTable('availability');
+            renderTable('final');
+        }
+
+        function renderTable(mode) {
+            const tableId = mode === 'availability' ? 'avail-table' : 'final-table';
+            const msgId = mode === 'availability' ? 'avail-empty-msg' : 'final-empty-msg';
+            const bannerId = mode === 'availability' ? 'avail-events-banner' : 'final-events-banner';
+            
+            const table = document.getElementById(tableId);
+            const msg = document.getElementById(msgId);
+            const banner = document.getElementById(bannerId);
+            
+            const columns = getPlanColumns();
+            const relevantCols = columns.filter(c => c.type !== 'separator');
+            
+            // Banner Logic
+            const activeEvents = data.periodEvents.filter(e => e.startDate <= relevantCols[relevantCols.length-1].date && e.endDate >= relevantCols[0].date);
+            if (activeEvents.length > 0) {
+                banner.classList.remove('hidden');
+                banner.innerHTML = `<strong>Events:</strong> ${activeEvents.map(e => `${e.name} (${formatDateDE(e.startDate)}-${formatDateDE(e.endDate)})`).join(', ')}`;
+            } else {
+                banner.classList.add('hidden');
+            }
+
+            if (data.drivers.length === 0) {
+                table.innerHTML = '';
+                msg.classList.remove('hidden');
+                return;
+            }
+            msg.classList.add('hidden');
+
+            let thead = `<thead class="bg-gray-50"><tr>
+                            <th class="sticky-col px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase border-r bg-gray-50 min-w-[120px]">Fahrer</th>`;
+            
+            relevantCols.forEach(c => {
+                thead += `<th class="px-2 py-3 text-center min-w-[100px] border-l">
+                            <div class="flex flex-col items-center">
+                                <span class="font-bold text-gray-900 text-sm">${c.weekday}</span>
+                                <span class="text-xs text-gray-800 font-semibold mb-1">${formatDateDE(c.date)}</span>
+                                <span class="text-[10px] text-gray-500 mb-1">${c.userLabel}</span>
+                                <button onclick="createPDF('${c.date}', '${c.label}', '${mode}')" class="text-[10px] bg-red-100 text-red-600 px-1 rounded">PDF</button>
+                            </div>
+                          </th>`;
+            });
+            thead += '</tr>';
+
+            // Counter Row for Final Plan
+            if (mode === 'final') {
+                thead += `<tr class="bg-gray-100"><th class="sticky-col px-4 py-2 text-xs font-bold text-gray-700 bg-gray-100 border-r border-t">Fahrer:</th>`;
+                relevantCols.forEach(c => {
+                    const count = new Set(data.assignments.filter(a => a.date === c.date).map(a => a.driver)).size;
+                    thead += `<th class="px-2 py-2 text-center text-lg font-extrabold border-l border-t ${count>0?'text-teal-700':'text-gray-400'}">${count}</th>`;
+                });
+                thead += '</tr>';
+            }
+            thead += '</thead>';
+
+            let tbody = '<tbody class="bg-white divide-y divide-gray-200">';
+            data.drivers.sort().forEach((driver, idx) => {
+                const color = DRIVER_COLORS[idx % DRIVER_COLORS.length];
+                const bgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                
+                tbody += `<tr class="${bgClass}">
+                            <td class="sticky-col px-4 py-3 text-sm font-medium text-gray-900 border-r ${bgClass}">${driver}</td>`;
+                
+                relevantCols.forEach(c => {
+                    const items = mode === 'availability' 
+                        ? data.shifts.filter(s => s.driver === driver && s.date === c.date)
+                        : data.assignments.filter(a => a.driver === driver && a.date === c.date);
+                    
+                    let cellContent = '-';
+                    let cellStyle = '';
+                    
+                    if (items.length > 0) {
+                        cellStyle = `background-color: ${color.bg}; border-left: 4px solid ${color.border};`;
+                        cellContent = items.map(item => {
+                            const time = item.isAllDay && mode === 'availability' ? 'Ganztägig' : `${item.startTime}-${item.endTime}`;
+                            const assignedMark = mode === 'availability' && data.assignments.some(a => a.originalShiftId === item.id) ? '<span class="text-green-700">✅</span>' : '';
+                            const itemId = mode === 'availability' ? item.id : item.assignmentId;
+                            
+                            return `<div class="text-xs p-1 mb-1 rounded border border-gray-300 bg-white bg-opacity-75 shadow-sm"
+                                        onclick="openEditModal('${itemId}', '${mode}')">
+                                        <div class="font-bold">${time}</div>
+                                        ${item.description ? `<div class="truncate text-[10px] text-gray-600">${item.description}</div>` : ''}
+                                        ${assignedMark}
+                                    </div>`;
+                        }).join('');
+                    }
+
+                    tbody += `<td class="px-2 py-2 border-l align-top text-center" style="${cellStyle}">${cellContent}</td>`;
+                });
+                tbody += '</tr>';
+            });
+            tbody += '</tbody>';
+
+            table.innerHTML = thead + tbody;
+        }
+
+        // Admin
+        function renderAdmin() {
+            const list = document.getElementById('event-list');
+            list.innerHTML = '';
+            data.periodEvents.forEach(e => {
+                const li = document.createElement('li');
+                li.className = 'py-3 flex justify-between items-center';
+                li.innerHTML = `<span><strong>${e.name}</strong> (${formatDateDE(e.startDate)} - ${formatDateDE(e.endDate)})</span>
+                                <button onclick="deleteEvent('${e.id}')" class="text-red-500 font-bold">&times;</button>`;
+                list.appendChild(li);
+            });
+        }
+        
+        function addEvent() {
+            const name = document.getElementById('event-name').value;
+            const start = document.getElementById('event-start').value;
+            const end = document.getElementById('event-end').value;
+            if(!name || !start || !end) return;
+            data.periodEvents.push({ id: generateUUID(), name, startDate: start, endDate: end });
+            saveData();
+            document.getElementById('event-name').value = '';
+            renderAdmin(); renderPlans();
+        }
+
+        function deleteEvent(id) {
+            data.periodEvents = data.periodEvents.filter(e => e.id !== id);
+            saveData(); renderAdmin(); renderPlans();
+        }
+
+        // --- EDIT MODAL LOGIC ---
+        function openEditModal(id, mode) {
+            const modal = document.getElementById('edit-modal');
+            const title = document.getElementById('edit-modal-title');
+            const slotsSec = document.getElementById('edit-slots-section');
+            const singleTime = document.getElementById('edit-single-time');
+            const btnAssign = document.getElementById('btn-assign-save');
+            const btnSimple = document.getElementById('btn-save-simple');
+
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-type').value = mode;
+            modal.classList.remove('hidden');
+
+            let item;
+            if (mode === 'availability') {
+                item = data.shifts.find(s => s.id === id);
+                title.innerText = 'Verfügbarkeit bearbeiten & zuweisen';
+                slotsSec.classList.remove('hidden');
+                singleTime.classList.add('hidden');
+                btnAssign.classList.remove('hidden');
+                btnSimple.innerText = 'Verfügbarkeit speichern';
+                
+                // Load existing slots
+                currentSlots = data.assignments.filter(a => a.originalShiftId === id).map(a => ({
+                    id: a.assignmentId, start: a.startTime, end: a.endTime
+                }));
+                // Or default
+                if (currentSlots.length === 0 && !item.isAllDay) {
+                    currentSlots.push({ id: null, start: item.startTime, end: item.endTime });
+                }
+                renderSlots();
+
+            } else {
+                item = data.assignments.find(a => a.assignmentId === id);
+                title.innerText = 'Zuteilung bearbeiten';
+                slotsSec.classList.add('hidden');
+                singleTime.classList.remove('hidden');
+                btnAssign.classList.add('hidden');
+                btnSimple.innerText = 'Zuteilung speichern';
+                
+                document.getElementById('edit-start').value = item.startTime;
+                document.getElementById('edit-end').value = item.endTime;
+            }
+
+            document.getElementById('edit-driver').value = item.driver;
+            document.getElementById('edit-date').value = item.date;
+            document.getElementById('edit-desc').value = item.description || '';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+
+        function renderSlots() {
+            const container = document.getElementById('slots-container');
+            container.innerHTML = '';
+            currentSlots.forEach((s, i) => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center bg-gray-50 p-2 rounded';
+                div.innerHTML = `<input type="time" class="p-1 border text-sm" value="${s.start}" onchange="updateSlot(${i}, 'start', this.value)">
+                                 <span>-</span>
+                                 <input type="time" class="p-1 border text-sm" value="${s.end}" onchange="updateSlot(${i}, 'end', this.value)">
+                                 <button onclick="removeSlot(${i})" class="text-red-500 font-bold ml-2">&times;</button>`;
+                container.appendChild(div);
+            });
+        }
+        function addSlot() { currentSlots.push({id:null, start:'', end:''}); renderSlots(); }
+        function removeSlot(i) { currentSlots.splice(i, 1); renderSlots(); }
+        function updateSlot(i, field, val) { currentSlots[i][field] = val; }
+
+        function saveSimple() {
+            const id = document.getElementById('edit-id').value;
+            const mode = document.getElementById('edit-type').value;
+            const driver = document.getElementById('edit-driver').value;
+            const date = document.getElementById('edit-date').value;
+            const desc = document.getElementById('edit-desc').value;
+
+            if (mode === 'availability') {
+                const idx = data.shifts.findIndex(s => s.id === id);
+                if (idx > -1) {
+                    data.shifts[idx] = { ...data.shifts[idx], driver, date, description: desc };
+                    // Add driver if new
+                    if (!data.drivers.includes(driver)) data.drivers.push(driver);
+                    saveData(); renderPlans(); renderDrivers();
+                }
+            } else {
+                const idx = data.assignments.findIndex(a => a.assignmentId === id);
+                if (idx > -1) {
+                    const start = document.getElementById('edit-start').value;
+                    const end = document.getElementById('edit-end').value;
+                    data.assignments[idx] = { ...data.assignments[idx], driver, date, description: desc, startTime: start, endTime: end };
+                    if (!data.drivers.includes(driver)) data.drivers.push(driver);
+                    saveData(); renderPlans(); renderDrivers();
+                    simulateNotification(driver, 'change');
+                }
+            }
+            closeEditModal();
+        }
+
+        function assignAndSave() {
+            const id = document.getElementById('edit-id').value;
+            const driver = document.getElementById('edit-driver').value;
+            const date = document.getElementById('edit-date').value;
+            const desc = document.getElementById('edit-desc').value;
+
+            // Remove old assignments for this shift
+            data.assignments = data.assignments.filter(a => a.originalShiftId !== id);
+
+            // Add new ones from slots
+            const validSlots = currentSlots.filter(s => s.start && s.end);
+            if(validSlots.length === 0) return alert('Bitte Slots definieren');
+
+            validSlots.forEach(s => {
+                data.assignments.push({
+                    assignmentId: s.id || generateUUID(),
+                    originalShiftId: id,
+                    driver, date, description: desc,
+                    startTime: s.start, endTime: s.end
+                });
+            });
+
+            // Update shift too
+            const idx = data.shifts.findIndex(s => s.id === id);
+            data.shifts[idx] = { ...data.shifts[idx], driver, date, description: desc };
+            
+            if (!data.drivers.includes(driver)) data.drivers.push(driver);
+
+            saveData(); renderPlans(); closeEditModal();
+            simulateNotification(driver, 'assign');
+        }
+
+        // --- NOTIFICATIONS & EXPORT ---
+        function openNotificationModal() {
+            document.getElementById('notification-modal').classList.remove('hidden');
+            renderNotificationModalState();
+        }
+        function renderNotificationModalState() {
+            const s = data.notificationSettings;
+            document.getElementById('notif-email').checked = s.emailEnabled;
+            document.getElementById('notif-push').checked = s.pushEnabled;
+            document.getElementById('notif-assign').checked = s.notifyOnAssignment;
+            document.getElementById('notif-change').checked = s.notifyOnChange;
+            document.getElementById('notif-delete').checked = s.notifyOnDelete;
+        }
+        function saveNotifications() {
+            data.notificationSettings = {
+                emailEnabled: document.getElementById('notif-email').checked,
+                pushEnabled: document.getElementById('notif-push').checked,
+                notifyOnAssignment: document.getElementById('notif-assign').checked,
+                notifyOnChange: document.getElementById('notif-change').checked,
+                notifyOnDelete: document.getElementById('notif-delete').checked
+            };
+            saveData();
+            document.getElementById('notification-modal').classList.add('hidden');
+        }
+
+        function exportData() {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'backup.json'; a.click();
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const r = new FileReader();
+            r.onload = e => {
+                try { data = { ...data, ...JSON.parse(e.target.result) }; saveData(); init(); alert('Import OK'); }
+                catch(err) { alert('Import Fehler'); }
+            };
+            r.readAsText(file);
+        }
+
+        function exportCalendar() {
+            let ics = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Planer//DE\n";
+            data.assignments.forEach(a => {
+                const ds = a.date.replace(/-/g,'');
+                ics += `BEGIN:VEVENT\nDTSTART:${ds}T${a.startTime.replace(':','')}00\nDTEND:${ds}T${a.endTime.replace(':','')}00\nSUMMARY:Schicht ${a.driver}\nDESCRIPTION:${a.description||''}\nEND:VEVENT\n`;
+            });
+            ics += "END:VCALENDAR";
+            const blob = new Blob([ics], { type: 'text/calendar' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'plan.ics'; a.click();
+        }
+
+        window.createPDF = function(dateString, label, mode) {
+            const drivers = data.drivers.sort();
+            if(drivers.length===0) return alert('Keine Fahrer');
+            
+            // Build simple temp HTML for PDF
+            const container = document.getElementById('pdf-temp-container');
+            const items = mode === 'availability' ? data.shifts : data.assignments;
+            
+            let html = `<div style="width:800px; padding:20px; font-family:sans-serif;">
+                        <h2 style="text-align:center">Plan: ${label} (${mode==='final'?'Final':'Verfügbarkeit'})</h2>
+                        <table style="width:100%; border-collapse:collapse; margin-top:20px;">
+                            <thead><tr style="background:#eee;"><th style="border:1px solid #999; padding:5px; text-align:left;">Fahrer</th><th style="border:1px solid #999; padding:5px; text-align:left;">Schicht</th></tr></thead><tbody>`;
+            
+            drivers.forEach(d => {
+                const shift = items.find(s => s.driver === d && s.date === dateString);
+                const text = shift ? (shift.isAllDay && mode === 'availability' ? 'Ganztägig' : `${shift.startTime} - ${shift.endTime} ${shift.description||''}`) : '-';
+                html += `<tr><td style="border:1px solid #ccc; padding:5px;">${d}</td><td style="border:1px solid #ccc; padding:5px;">${text}</td></tr>`;
+            });
+            html += `</tbody></table></div>`;
+            
+            container.innerHTML = html;
+            
+            html2canvas(container).then(canvas => {
+                const img = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF();
+                pdf.addImage(img, 'PNG', 10, 10, 190, 0);
+                pdf.save(`Plan_${dateString}.pdf`);
+                container.innerHTML = '';
+            });
+        }
+
+        // --- INIT ---
+        init();
+
+    </script>
+</body>
+</html>
